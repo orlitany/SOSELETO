@@ -61,6 +61,28 @@ def fetch_mnist_data(params, data_path, labels, num_shot):
     return (mnist_target_set, mnist_target_labels), mnist_test_loader
 
 
+class mySVHNdataset(datasets.SVHN):
+    '''Modify the standard svhn dataset class to return idx.
+    Args:
+        original SVHN dataset class
+    Returns:        
+        modified datset class
+    '''
+    def __init__(self, label_list, root, download, transform, split):
+        # inherit from dataset class
+        super(mySVHNdataset, self).__init__(root=root, download=download, transform=transform, split=split)
+
+        # manipulate svhn dataset to keep only relevant labels        
+        keep_ind = np.where(np.isin(self.labels, label_list))
+        self.labels = self.labels[keep_ind]
+        self.data = self.data[keep_ind]
+        
+    
+    def __getitem__(self, idx):
+        # modify to return idx
+        return idx, super(mySVHNdataset, self).__getitem__(idx)
+        
+        
 def fetch_svhn_data(params, data_path, labels):
     '''Prepares mnist test data loader and small target set for training.
     Args:
@@ -73,23 +95,29 @@ def fetch_svhn_data(params, data_path, labels):
     '''
 
     svhn_transform = transforms.Compose([
-        transforms.Scale([28, 28]), 
+        transforms.Resize([28, 28]), 
         transforms.RandomHorizontalFlip(),
         transforms.Grayscale(num_output_channels=1),                    
         transforms.ToTensor(),
         transforms.Normalize([0.444], [0.175])
     ])
-
-    # manipulate svhn dataset to keep only relevant labels
-    svhn_train = datasets.SVHN(root=data_path, download=True, transform=svhn_transform, split='train')
-    keep_ind = np.where(np.isin(svhn_train.labels, SVHN_LABELS))
-    svhn_train.labels = svhn_train.labels[keep_ind]
-    svhn_train.data = svhn_train.data[keep_ind]
     
+    '''Values for normalizing the data found via:
+    m = []
+    s = []
+    for i, x in enumerate(svhn_train_loader):
+        m.append((x[0].mean()))
+        s.append((x[0].std()))
+    '''
+
+    
+    svhn_train = mySVHNdataset(label_list=labels, root=data_path, download=True, transform=svhn_transform, split='train')    
     svhn_train_loader = torch.utils.data.DataLoader(dataset=svhn_train,
                                               batch_size=params['batch_size'],
                                               shuffle=True,
                                               num_workers=1)
+    
+
     return svhn_train_loader
 
 #############################
@@ -110,7 +138,7 @@ def test_fetch_mnist_data():
 
     # check dimensions
     assert mnist_target_set.shape[0] == num_shot * len(labels), 'wrong number of target instances'    
-    return 'fetch mnist data test passed'
+    return 'fetch mnist data test PASSED'
     
 def test_fetch_svhn_data():
     # TODO: add more tests
@@ -119,14 +147,20 @@ def test_fetch_svhn_data():
     svhn_train_loader = fetch_svhn_data(
         {'batch_size': 4}, data_path, labels)
 
+    # verify that first output is the correct index
+    assert (svhn_train_loader.dataset.__getitem__(idx=11)[0]) == 11
+    
+    # verify that correct labels remained
+    assert (np.unique(svhn_train_loader.dataset.labels) == labels).all(), 'remaining labels do not match requested label list'
     # check output types    
     assert type(svhn_train_loader) == torch.utils.data.dataloader.DataLoader, 'bad type'
 
         
-    return 'fetch svhn data test passed'
+    return 'fetch svhn data test PASSED'
 
 if __name__ == '__main__':
     print('Running some tests...')
     print(test_fetch_mnist_data())
+    print(test_fetch_svhn_data())
     
     
