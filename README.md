@@ -1,2 +1,3 @@
 # SOSELETO
-pytorch implementation of SOSELETO (under construction)
+pytorch implementation of SOSELETO
+
